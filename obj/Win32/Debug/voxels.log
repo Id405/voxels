@@ -1,0 +1,22 @@
+﻿  Using triplet "x86-windows" from "E:\Documents\Dev\PBRVulkan\Build\vcpkg.windows\installed\x86-windows\"
+  main.cpp
+  ofApp.cpp
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\addons\ofxvolumetrics\src\ofximagesequenceplayer.h(65): warning C4018: '>': signed/unsigned mismatch (compiling source file src\main.cpp)
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\addons\ofxvolumetrics\src\ofximagesequenceplayer.h(65): warning C4018: '>': signed/unsigned mismatch (compiling source file src\ofApp.cpp)
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myapps\voxels\src\ofapp.cpp(80): warning C4838: conversion from 'int' to 'char' requires a narrowing conversion
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myapps\voxels\src\ofapp.cpp(80): warning C4309: 'initializing': truncation of constant value
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myapps\voxels\src\ofapp.cpp(86): warning C4018: '<': signed/unsigned mismatch
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myapps\voxels\src\ofapp.cpp(98): warning C4838: conversion from 'int' to 'char' requires a narrowing conversion
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myapps\voxels\src\ofapp.cpp(98): warning C4309: 'initializing': truncation of constant value
+  voxels.vcxproj -> E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myApps\voxels\bin\voxels_debug.exe
+  
+  	                   2	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\libs\fmodex\lib\vs\Win32\
+  	  *EXTRA File 		 1503232	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myApps\voxels\bin\fmodex64.dll
+  	  *EXTRA File 		 1552384	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myApps\voxels\bin\fmodexL64.dll
+  	  *EXTRA File 		 6018560	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myApps\voxels\bin\FreeImage.dll
+  
+  	                   1	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\libs\FreeImage\lib\vs\Win32\
+  	  *EXTRA File 		 1266176	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myApps\voxels\bin\fmodex.dll
+  	  *EXTRA File 		 1503232	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myApps\voxels\bin\fmodex64.dll
+  	  *EXTRA File 		 1312768	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myApps\voxels\bin\fmodexL.dll
+  	  *EXTRA File 		 1552384	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myApps\voxels\bin\fmodexL64.dll

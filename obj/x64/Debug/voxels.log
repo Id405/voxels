@@ -1,0 +1,28 @@
+﻿  Using triplet "x64-windows" from "E:\Documents\Dev\PBRVulkan\Build\vcpkg.windows\installed\x64-windows\"
+  main.cpp
+  ofApp.cpp
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\libs\openframeworks\math\ofmatrix4x4.h(326): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data (compiling source file src\ofApp.cpp)
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\libs\openframeworks\math\ofmatrix4x4.h(331): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data (compiling source file src\ofApp.cpp)
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\libs\openframeworks\math\ofmatrix4x4.h(912): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data (compiling source file src\ofApp.cpp)
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\libs\openframeworks\math\ofmatrix4x4.h(913): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data (compiling source file src\ofApp.cpp)
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\libs\openframeworks\math\ofmatrix4x4.h(914): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data (compiling source file src\ofApp.cpp)
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\libs\openframeworks\math\ofmatrix4x4.h(915): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data (compiling source file src\ofApp.cpp)
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\libs\openframeworks\math\ofmatrix4x4.h(326): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data (compiling source file src\main.cpp)
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\libs\openframeworks\math\ofmatrix4x4.h(331): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data (compiling source file src\main.cpp)
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\libs\openframeworks\math\ofmatrix4x4.h(912): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data (compiling source file src\main.cpp)
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\libs\openframeworks\math\ofmatrix4x4.h(913): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data (compiling source file src\main.cpp)
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\libs\openframeworks\math\ofmatrix4x4.h(914): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data (compiling source file src\main.cpp)
+e:\documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\libs\openframeworks\math\ofmatrix4x4.h(915): warning C4267: 'argument': conversion from 'size_t' to 'int', possible loss of data (compiling source file src\main.cpp)
+     Creating library bin\voxels_debug.lib and object bin\voxels_debug.exp
+  voxels.vcxproj -> E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myApps\voxels\bin\voxels_debug.exe
+  
+  	                   2	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\libs\fmodex\lib\vs\x64\
+  	  *EXTRA File 		 1266176	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myApps\voxels\bin\fmodex.dll
+  	  *EXTRA File 		 1312768	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myApps\voxels\bin\fmodexL.dll
+  	  *EXTRA File 		 6942208	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myApps\voxels\bin\FreeImage.dll
+  
+  	                   1	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\libs\FreeImage\lib\vs\x64\
+  	  *EXTRA File 		 1266176	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myApps\voxels\bin\fmodex.dll
+  	  *EXTRA File 		 1503232	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myApps\voxels\bin\fmodex64.dll
+  	  *EXTRA File 		 1312768	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myApps\voxels\bin\fmodexL.dll
+  	  *EXTRA File 		 1552384	E:\Documents\of_v0.11.0_vs2017_release\of_v0.11.0_vs2017_release\apps\myApps\voxels\bin\fmodexL64.dll
