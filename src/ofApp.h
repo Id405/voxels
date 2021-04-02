@@ -30,6 +30,7 @@ class ofApp : public ofBaseApp{
 		ofxPanel gui;
 		ofxFloatSlider samples;
 		ofxLabel label;
+		ofxButton button;
 		unsigned int scene;
 		unsigned char * volumeData;
 
@@ -38,10 +39,13 @@ class ofApp : public ofBaseApp{
 		bool lockMouse = false;
 		bool render = true;
 		ofVec3f rotation;
+		int lastmousex;
+		int lastmousey;
 
 		float fov = 90;
 		float moveSpeed = 40;
 		float sensitivity = 0.0006;
+		float dragsensitivity= 0.001;
 
 		int sceneWidth = 16;
 		int sceneLength = 16;

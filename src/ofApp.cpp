@@ -10,6 +10,7 @@ void ofApp::setup(){
 	gui.setup();
 	gui.add(samples.setup("samples", 10, 1, 200));
 	gui.add(label.setup("frametime", "initializing", 200, 25));
+	gui.add(button.setup("reload shaders", 200, 25));
 
 	shader.load("shaders/tracer");
 	loadVoxelData("scenes/garfield.evox");
@@ -42,6 +43,10 @@ void ofApp::draw(){
 		gui.draw();
 		samples = round(samples);
 		label = std::string(to_string(ofGetLastFrameTime() * 1000)).substr(0, 3) + " ms";
+		if (button) {
+			shader.load("shaders/tracer");
+			// button = false;
+		}
 	}
 }
 
@@ -170,15 +175,25 @@ void ofApp::keyReleased(int key){
 }
 
 void ofApp::mouseMoved(int x, int y ){
+	#ifdef _WIN64
 	if (lockMouse) {
 		rotation.z -= (x-ofGetWindowWidth()/2) * sensitivity;
 		rotation.x -= (y-ofGetWindowHeight()/2) * sensitivity;
-		// SetCursorPos(ofGetWindowPositionX() + ofGetWindowWidth()/2, ofGetWindowPositionY() + ofGetWindowHeight()/2);
+		SetCursorPos(ofGetWindowPositionX() + ofGetWindowWidth()/2, ofGetWindowPositionY() + ofGetWindowHeight()/2);
 	}
+	#endif
+	lastmousex = x;
+	lastmousey = y;
 }
 
-void ofApp::mouseDragged(int x, int y, int button){
 
+void ofApp::mouseDragged(int x, int y, int button){
+	#ifdef __linux__
+	rotation.z -= (x - lastmousex) * dragsensitivity;
+	rotation.x -= (y - lastmousey) * dragsensitivity; 
+	lastmousex = x;
+	lastmousey = y;
+	#endif
 }
 
 void ofApp::mousePressed(int x, int y, int button){
