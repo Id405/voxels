@@ -25,12 +25,27 @@ class ofApp : public ofBaseApp{
 
 		void loadVoxelData(string p);
 		void setVoxel(int x, int y, int z, char c[4]);
+
+		void reloadFBO();
+
+		ofFbo renderHistory;
+		ofFbo pastFrame;
+		ofMatrix4x4 cameraMatrix;
+		ofMatrix4x4 pastCameraMatrix;
+		ofImage blueNoise;
+		ofMesh mesh;
 		
-		ofShader shader;
+		ofShader rayTracer;
+		ofShader denoiser;
 		ofxPanel gui;
 		ofxFloatSlider samples;
+		ofxFloatSlider maxSteps;
+		ofxFloatSlider reproPercent;
 		ofxLabel label;
-		ofxButton button;
+		ofxLabel fps;
+		ofxButton reload;
+		ofxButton renderButton;
+		ofImage img;
 		unsigned int scene;
 		unsigned char * volumeData;
 
@@ -43,7 +58,7 @@ class ofApp : public ofBaseApp{
 		int lastmousey;
 
 		float fov = 90;
-		float moveSpeed = 40;
+		float moveSpeed = 100;
 		float sensitivity = 0.0006;
 		float dragsensitivity= 0.001;
 
@@ -52,6 +67,6 @@ class ofApp : public ofBaseApp{
 		int sceneHeight = 16;
 
 		// int samples = 15;
-		int maxSteps = 256;
+		// int maxSteps = 512;
 		int octreeDepth = 4;
 };

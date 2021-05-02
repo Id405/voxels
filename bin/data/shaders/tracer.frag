@@ -13,10 +13,11 @@ uniform float minLight = 0;
 uniform vec3 skycolor = vec3(0.9); //gray
 uniform vec3 suncolor = vec3(192.0/255.0, 191.0/255.0, 173.0/255.0);
 uniform vec3 lightcolor = vec3(5, 0, 0);
-uniform vec3 lightdir = vec3(0.5, -1.0, 1.0);
-uniform float sunSharpness = 5;
-uniform float sunPower = 20.0;
-uniform float skyPower = 0.2;
+uniform vec3 lightdir = vec3(0.0, 0.0, 1.0);
+uniform float sunSharpness = 1;
+uniform float sunPower = 4;
+uniform float skyPower = 0.4;
+uniform float sunlightStrength = 1.0;
 uniform float frameCount;
 uniform sampler3D scene;
 uniform ivec3 sceneSize;
@@ -24,16 +25,21 @@ uniform int octreeDepth;
 
 uniform vec3 materialColor = vec3(0.5);
 
-uniform vec3 transl = vec3(0, 0, 0);
-uniform vec3 rotation;
+uniform sampler2D blueNoise;
+
+uniform mat4 cameraMatrix;
 
 const float glowScale = 5;
 vec3 glowColor = vec3(0.5, 0.8, 1.0);
 
-out vec4 outColor;
+layout (location = 0) out vec4 outColor;
+out float gl_FragDepth;
 
 #define PI 3.1415926535897932384626433832795
 
+vec4 getBlueNoise(ivec2 p) {
+	return texelFetch(blueNoise, p+int(frameCount)*ivec2(113, 127), 0);
+}
 
 uint base_hash(uvec2 p) {
     p = 1103515245U*((p >> 1U)^(p.yx));
@@ -71,23 +77,23 @@ vec3 scatter(vec3 n) {
 
 mat4 rotationX( in float angle ) { //https://gist.github.com/onedayitwillmake/3288507
 	return mat4(	1.0,		0,			0,			0,
-									0, 	cos(angle),	-sin(angle),		0,
-									0, 	sin(angle),	 cos(angle),		0,
-									0, 			0,			  0, 		1);
+					0, 	cos(angle),	-sin(angle),		0,
+					0, 	sin(angle),	 cos(angle),		0,
+					0, 			0,			  0, 		1);
 }
 
 mat4 rotationY( in float angle ) {
 	return mat4(	cos(angle),		0,		sin(angle),	0,
-								0,		1.0,			 0,	0,
-								-sin(angle),	0,		cos(angle),	0,
-								0, 		0,				0,	1);
+					0,		        1.0,	0,	        0,
+					-sin(angle),	0,		cos(angle),	0,
+					0, 		        0,	    0,	        1);
 }
 
 mat4 rotationZ( in float angle ) {
-	return mat4(	cos(angle),		-sin(angle),	0,	0,
-								sin(angle),		cos(angle),		0,	0,
-								0,				0,		1,	0,
-								0,				0,		0,	1);
+	return mat4(	cos(angle), -sin(angle), 0,	0,
+					sin(angle), cos(angle),	 0,	0,
+					0,			0,		     1,	0,
+					0,			0,		     0,	1);
 }
 
 vec3 rotate(vec3 r, vec3 p) {
@@ -121,6 +127,7 @@ bool rayAABB(vec3 rayOrigin, vec3 rayDir, vec3 boxMin, vec3 boxMax, out vec2 res
     return true;
 }
 
+
 bool insideBoundingBox(vec3 p, vec3 min, vec3 max) {
 	return p.x > min.x && p.x < max.x && p.y > min.y && p.y < max.y && p.z > min.z && p.z < max.z;
 }
@@ -130,55 +137,16 @@ bool getVoxel(ivec3 c, int l) {
 }
 
 vec3 getColor(ivec3 c, int l) {
-	return texelFetch(scene, c, l).rgb;
+	return texelFetch(scene, clamp(c, ivec3(0), sceneSize), l).rgb;
 }
 
-void calcDDA(in vec3 raypos, in vec3 raydir, out vec3 sideDist, out vec3 deltaDist, out ivec3 mapPos, out ivec3 rayStep) {
-	mapPos = ivec3(floor(raypos));
-	deltaDist = abs(vec3(length(raydir)) / raydir);
-	rayStep = ivec3(sign(raydir));
-	sideDist = (sign(raydir) * (vec3(mapPos) - raypos) + (sign(raydir) * 0.5) + 0.5) * deltaDist;
-}
-
-// bool march(in vec3 raypos, in vec3 raydir, in int level, out vec3 normal, out float dist) {
-// 	ivec3 gridPosition = ivec3(floor(raypos + 0.));
-// 	ivec3 startGridPosition = gridPosition;
-
-// 	vec3 deltaDist = abs(vec3(1.0) / raydir);
-//     ivec3 vstep = ivec3(greaterThan(raydir, vec3(0.0))) * 2 - ivec3(1);
-
-//     vec3 nextEdge = gridPosition + vec3(vstep) * 0.5 + vec3(0.5);
-    
-//     vec3 timeToEdge = abs((nextEdge - raypos) * deltaDist);
-//     float f = 0.0;
-
-// 	for(int i=0; i<maxSteps; i++) {
-// 		bvec3 mask = lessThanEqual(timeToEdge.xyz, min(timeToEdge.yzx, timeToEdge.zxy));
-// 		gridPosition += ivec3(mask) * vstep;
-// 		timeToEdge += vec3(mask) * deltaDist;
-// 		if(!insideBoundingBox(gridPosition << level, vec3(-1.01), sceneSize + 1.01)) {
-// 			return false;
-// 		}
-// 		normal = vec3(mask) * -vec3(vstep);
-// 		if(getVoxel(gridPosition, level)) {
-// 			// vec3 endpos = gridPosition +  vec3(mask) * -vec3(vstep);
-// 			// dist = distance(raypos, endpos);
-// 			vec2 res; //TODO optimize
-// 			rayAABB(raypos*pow(2, level), raydir, gridPosition << level, (gridPosition+1) << level, res, normal);
-// 			dist = res.x - 0.1;
-// 			return true;
-// 		}
-// 	}
-// }
-
-vec4 trace(vec2 p, vec3 transl) {
+vec4 trace(vec2 p) {
 	vec2 s = vec2(p.x - iResolution.x/2.0f, p.y - iResolution.y/2.0f);
-	vec3 raypos = transl; //TODO precompute these values
-	vec3 raydir = normalize(vec3(s.x/iResolution.x, fov, s.y/iResolution.x));
-	raydir = rotate(rotation, raydir);
+	vec3 raypos = (cameraMatrix * vec4(0, 0, 0, 1)).xyz; //TODO precompute these values
+	vec3 raydir = normalize(vec3(s.x/iResolution.y, fov, s.y/iResolution.y));
+	raydir = (cameraMatrix * vec4(raydir, 0.0)).xyz;
 
-	float bounces = 0.0;
-	vec3 luminance = vec3(1);
+	vec3 outColor = vec3(1);
 
 	vec3 n;
 	vec2 res;
@@ -187,16 +155,14 @@ vec4 trace(vec2 p, vec3 transl) {
 		if(rayAABB(raypos, raydir, vec3(0, 0, 0), vec3(sceneSize), res, n)) {
 			raypos += raydir * (res.x - 0.01);
 		} else {
-			// return vec4(suncolor * pow(max(dot(normalize(lightdir), raydir), 0.0), sunSharpness) * sunPower + skycolor * skyPower, 1);
-			return vec4(0.1, 0.3, 0.3, 1.0);
-			// return vec4(luminance, 1.0);
+			return vec4((suncolor * pow(max(dot(normalize(lightdir), raydir), 0.0), sunSharpness) * sunPower + skycolor * skyPower) * sunlightStrength, 10000000);
 		} //TODO normal data is not needed
 	}
 
 	int maxLevel = octreeDepth-1;
-	int level = maxLevel;
+	int level = maxLevel/2;
 
-	float hit = 0;
+	float complexity = maxLevel/2;
 
 	ivec3 gridPosition = ivec3(floor(raypos));
 
@@ -206,55 +172,96 @@ vec4 trace(vec2 p, vec3 transl) {
 
 	vec3 nextEdge = vec3(gridPosition & ivec3(-1 << level)) + vec3(greaterThan(raydir, vec3(0.0))) * (1 << level);
 	vec3 sideDist = abs((nextEdge - raypos) * deltaDist);
-	vec3 sideDistIncrement;
 
 	float dist;
     vec3 normal = vec3(0.0);
-	vec3 colorOut;
+
+	bool moved = false;
+	bool lastNonEmpty = true;
+
+	int steps = 0;
+	float sunlight = 0;
+	vec3 luminance = vec3(0);
+	float depth = 0;
 
 	for(int i=0; i<maxSteps; i++) {
-
-		if(getVoxel(gridPosition >> level, level)) {
-			if(level == 0) {
-				colorOut = getColor(gridPosition >> level, level);
-				hit = 1;
-				break;
-			}
-
-			sideDist -= sideDistIncrement;
-
-			level -= 1;
-			bvec3 mask = lessThanEqual(sideDist.xyz, min(sideDist.yzx, sideDist.zxy));
-			sideDist += vec3(mask) * deltaDist * vec3(1 << level);
-		}
-
 		if(!insideBoundingBox(gridPosition, vec3(-2), sceneSize + vec3(1))) {
+			sunlight = sunlightStrength;
 			break;
 		}
 
-		if(!getVoxel(gridPosition >> level, level)) {
-			// sideDistIncrement = vec3(0);
+		bool nonEmpty = getVoxel(gridPosition >> level, level);
+		bool belowEmpty = !getVoxel(gridPosition >> (level + 1), level + 1) && level < maxLevel;
+		bool verticalMove = nonEmpty || belowEmpty;
 
+		if(verticalMove) {
+			complexity += int(nonEmpty);
+
+			vec3 lraypos = raypos;
+			if(moved) {
+				lraypos = raypos + raydir * dist;
+			}
+
+			gridPosition = ivec3(floor(lraypos - normal * 0.0001));
+
+			if(level == 0 && nonEmpty) {
+				complexity -= 1;
+				// return vec4(getColor(gridPosition >> level, level), 1.0);
+				// return vec4(vec3(dist/128), 1.0);
+				outColor *= getColor(gridPosition >> level, level);
+				// outColor *= 0.5;
+
+				if(depth == 0) {
+					depth = dist;
+				}
+
+				lraypos += normal * 0.01;
+				
+				raypos = lraypos;
+				raydir = scatter(normal);
+				deltaDist = abs(vec3(1)/raydir);
+				step = ivec3(sign(raydir));
+				raydirsign = greaterThan(sign(raydir), vec3(0));
+				dist = 0;
+			}
+
+			level -= int(nonEmpty);
+			level = max(0, level);
+			level += int(!nonEmpty);
+			
+			nextEdge = vec3(gridPosition & ivec3(-1 << level)) + vec3(greaterThan(raydir, vec3(0.0))) * (1 << level);
+			sideDist = abs((nextEdge - lraypos) * deltaDist);
+
+			if(moved) {
+				sideDist += dist;
+			}
+		}
+
+		if(!verticalMove) {
 			float minTime = min(sideDist.x, min(sideDist.y, sideDist.z));
+			dist = minTime;
 
 			bvec3 mask = lessThanEqual(sideDist.xyz, min(sideDist.yzx, sideDist.zxy));
 			ivec3 vstep = ivec3(mix(-1, 1 << level, raydirsign.x), mix(-1, 1 << level, raydirsign.y), mix(-1, 1 << level, raydirsign.z));
 			gridPosition = (gridPosition & ivec3(-1 << level)) + ivec3(mask) * vstep;
-			sideDistIncrement = vec3(mask) * deltaDist * vec3(1 << level);
-			sideDist += sideDistIncrement;
-			normal = vec3(mask) * -step; //WRONG NORMAL DATA!!!!
+			sideDist += vec3(mask) * deltaDist * vec3(1 << level);
+			normal = vec3(mask) * -step; //WRONG NORMAL DATA!!!!?
+			moved = true;
 		}
+
+		lastNonEmpty = nonEmpty;
+		steps = i;
 	}
 
+	if(depth == 0) {
+		depth = 10000000;
+	}
 
-	// return vec4(abs(normal)*int(hit), 1.0);
-	return vec4(colorOut*hit, 1.0);
-	// return vec4(pow(materialColor, vec3(bounces)), 1.0);
-	// return vec4(vec3(dist/100), 1.0);
-	//return vec4(vec3(dist/1000), 1.0);
-	// return vec4(pow(materialColor, vec3(bounces)), 1.0);
-	// return vec4(vec3(1.0-bounces), 1.0);
-	// return vec4(luminance * pow(materialColor, vec3(bounces)), 1.0);
+	return vec4(outColor * (suncolor * pow(max(dot(normalize(lightdir), raydir), 0.0), sunSharpness) * sunPower + skycolor * skyPower), depth + res.x);
+	// return vec4(vec3(float(steps)/maxSteps), 1.0);
+	// return vec4(outColor, 1);
+	// return vec4(vec3(complexity/(maxLevel * 4)), 1);
+	// return vec4(vec3(dist/128), 1);
 }
 
 void mainImage(in vec2 fragCoord )
@@ -266,17 +273,23 @@ void mainImage(in vec2 fragCoord )
 	// world[1] = vec3(1, 1, 2);
 
 	for(int i=0; i < samples; i++) {
-		vec4 col = trace(fragCoord+(rand2(g_seed)*2-1), transl);
+		vec2 p = fragCoord;
+		// p += getBlueNoise(ivec2(gl_FragCoord)).xy * 2 - 1;
+		p += 0.25 * (rand2(g_seed) * 2 - 1);
+		p.y = iResolution.y - p.y;
+		vec4 col = trace(p);
 
-		outColor += col;
+		outColor += vec4(col.rgb, 1.0);
+		gl_FragDepth += log(col.a*10)/10;
 	}
 
 	outColor /= samplesCount;
+	gl_FragDepth /= samplesCount;
 	
 	// outColor.xyz = rand3();
 	// outColor.w = 1.0;
 
-	outColor = pow(outColor, vec4(vec3(1.0/2.2), 1.0));
+	outColor = pow(outColor, vec4(vec3(1.0/1.8), 1.0)); //Add night eye minecraft shader trick here too
 }
 
 void main() {

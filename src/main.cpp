@@ -4,8 +4,8 @@
 //========================================================================
 int main( ){
 	ofGLFWWindowSettings settings;
-	settings.setGLVersion(4, 6);
-	settings.setSize(1024, 720);
+	settings.setGLVersion(4, 5);
+	settings.setSize(1024, 1024);
 	ofCreateWindow(settings);
 
 	// this kicks off the running of my app
