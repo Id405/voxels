@@ -13,8 +13,8 @@ uniform float minLight = 0;
 uniform vec3 skycolor = vec3(0.9); //gray
 uniform vec3 suncolor = vec3(192.0/255.0, 191.0/255.0, 173.0/255.0);
 uniform vec3 lightcolor = vec3(5, 0, 0);
-uniform vec3 lightdir = vec3(0.0, 0.0, 1.0);
-uniform float sunSharpness = 1;
+uniform vec3 lightdir = vec3(0.0, 0.75, 1.0);
+uniform float sunSharpness = 2;
 uniform float sunPower = 4;
 uniform float skyPower = 0.4;
 uniform float sunlightStrength = 1.0;
@@ -47,6 +47,12 @@ uint base_hash(uvec2 p) {
     return h32^(h32 >> 16);
 }
 
+uint base_hash3(uvec3 p) {
+    p = 1103515245U*((p >> 1U)^(p.zyx));
+    uint h32 = 1103515245U * ((p.x)^(p.y>>3U));
+    return h32^(h32 >> 16);
+}
+
 float g_seed = 0.;
 
 vec2 rand2(inout float seed) {
@@ -57,6 +63,12 @@ vec2 rand2(inout float seed) {
 
 vec3 rand3(inout float seed) {
     uint n = base_hash(floatBitsToUint(vec2(seed+=1,seed+=1)));
+    uvec3 rz = uvec3(n, n*16807U, n*48271U);
+    return vec3(rz & uvec3(0x7fffffffU))/float(0x7fffffff);
+}
+
+vec3 rand3(vec3 seed) {
+    uint n = base_hash3(floatBitsToUint(seed));
     uvec3 rz = uvec3(n, n*16807U, n*48271U);
     return vec3(rz & uvec3(0x7fffffffU))/float(0x7fffffff);
 }
@@ -153,7 +165,7 @@ vec4 trace(vec2 p) {
 
 	if(!(insideBoundingBox(raypos, vec3(0), vec3(sceneSize)))) {
 		if(rayAABB(raypos, raydir, vec3(0, 0, 0), vec3(sceneSize), res, n)) {
-			raypos += raydir * (res.x - 0.01);
+			raypos += raydir * res.x + n * 0.00001;
 		} else {
 			return vec4((suncolor * pow(max(dot(normalize(lightdir), raydir), 0.0), sunSharpness) * sunPower + skycolor * skyPower) * sunlightStrength, 10000000);
 		} //TODO normal data is not needed
@@ -208,6 +220,12 @@ vec4 trace(vec2 p) {
 				complexity -= 1;
 				// return vec4(getColor(gridPosition >> level, level), 1.0);
 				// return vec4(vec3(dist/128), 1.0);
+				// if(rand3(vec3(gridPosition)).x > 0.99) {
+				// 	// luminance = vec3(0.02, 0.5, 1.0) * 100;
+				// 	luminance = rand3(vec3(gridPosition)) * 50;
+				// 	break;
+				// }
+
 				outColor *= getColor(gridPosition >> level, level);
 				// outColor *= 0.5;
 
@@ -257,7 +275,7 @@ vec4 trace(vec2 p) {
 		depth = 10000000;
 	}
 
-	return vec4(outColor * (suncolor * pow(max(dot(normalize(lightdir), raydir), 0.0), sunSharpness) * sunPower + skycolor * skyPower), depth + res.x);
+	return vec4(outColor * (suncolor * pow(max(dot(normalize(lightdir), raydir), 0.0), sunSharpness) * sunPower + skycolor * skyPower + luminance), depth + res.x);
 	// return vec4(vec3(float(steps)/maxSteps), 1.0);
 	// return vec4(outColor, 1);
 	// return vec4(vec3(complexity/(maxLevel * 4)), 1);
@@ -275,12 +293,12 @@ void mainImage(in vec2 fragCoord )
 	for(int i=0; i < samples; i++) {
 		vec2 p = fragCoord;
 		// p += getBlueNoise(ivec2(gl_FragCoord)).xy * 2 - 1;
-		p += 0.25 * (rand2(g_seed) * 2 - 1);
+		// p += 0.25 * (rand2(g_seed) * 2 - 1);
 		p.y = iResolution.y - p.y;
 		vec4 col = trace(p);
 
 		outColor += vec4(col.rgb, 1.0);
-		gl_FragDepth += log(col.a*10)/10;
+		gl_FragDepth += col.a/10000;
 	}
 
 	outColor /= samplesCount;
@@ -289,7 +307,7 @@ void mainImage(in vec2 fragCoord )
 	// outColor.xyz = rand3();
 	// outColor.w = 1.0;
 
-	outColor = pow(outColor, vec4(vec3(1.0/1.8), 1.0)); //Add night eye minecraft shader trick here too
+	// outColor = pow(outColor, vec4(vec3(1.0/1.8), 1.0)); //Add night eye minecraft shader trick here too
 }
 
 void main() {

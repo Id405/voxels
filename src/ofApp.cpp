@@ -10,12 +10,13 @@ void ofApp::setup(){
 	blueNoise.load("textures/LDR_RGBA_0.png");
 	blueNoise.getTexture().setTextureWrap(GL_REPEAT, GL_REPEAT);
 
-	// position.set(-20, -20, 48);
-	// rotation.set(-0.4, 0, -0.8);
+	position.set(-20, -20, 48);
+	rotation.set(-0.4, 0, -0.8);
 
 	rayTracer.load("shaders/tracer");
 	denoiser.load("shaders/denoiser");
 	loadVoxelData("scenes/garfield.evox");
+	// genWorld();
 	
 	{
 		mesh.setMode(OF_PRIMITIVE_TRIANGLE_STRIP);
@@ -38,7 +39,7 @@ void ofApp::setup(){
 	reloadFBO();
 }
 
-void ofApp::update(){
+void ofApp::update() {
 	ofVec3f rotatedInput = input.getRotatedRad(0, 0, rotation.z);
 	position += rotatedInput * ofGetLastFrameTime() * moveSpeed;
 
@@ -73,6 +74,7 @@ void ofApp::draw(){
 			denoiser.setUniformTexture("renderedFrame", renderHistory.getTextureReference(0), 0);
 			denoiser.setUniformTexture("renderedFrameDepth", renderHistory.getDepthTexture(), 2);
 			denoiser.setUniformTexture("pastFrame", pastFrame.getTextureReference(0), 1);
+			denoiser.setUniformTexture("pastFrameDepth", pastFrame.getDepthTexture(), 3);
 			denoiser.setUniform1f("fov", 0.5 * tan((90 - fov / 2) * PI / 180));
 			denoiser.setUniform1i("frameCount", ofGetFrameNum());
 			mesh.draw();
@@ -128,7 +130,7 @@ void ofApp::loadVoxelData(string p) {
 		}
 
 		for (int i = 1; i < lines.size(); i++) {
-			//Just load data in by splitting the string, definately not as efficient as it could be
+			//Just load data in by splitting the string, definitely not as efficient as it could be
 			//XYZ data
 			int x = stoi(ofSplitString(lines[i], ",")[0]); //UGLY
 			int y = stoi(ofSplitString(lines[i], ",")[2]);
@@ -145,7 +147,39 @@ void ofApp::loadVoxelData(string p) {
 		}
 	}
 
-	{ // create 3D texture, load voxel data into it, and create mipmaps
+	genSceneTexture();
+}
+
+void ofApp::genWorld() {
+	sceneWidth = 512;
+	sceneLength = 512;
+	sceneHeight = 128;
+
+	volumeData = new unsigned char[sceneWidth*sceneLength*sceneHeight * 4];
+
+	for (int x = 0; x < sceneWidth; x++) {
+		for (int y = 0; y < sceneLength; y++) {
+			for (int z = 0; z < sceneHeight; z++) {
+				char c[4] = { char(255), char(255), char(255), char(0) };
+				setVoxel(x, y, z, c);
+			}
+		}
+	}
+
+	for (int x = 0; x < sceneWidth; x++) {
+		for (int y = 0; y < sceneLength; y++) {
+			float height = ofNoise((float)x * freq, (float)y * freq) * ofNoise((float)x * freq * 0.5, (float)y * freq * 0.5);
+			for (int z = 0; z < height * sceneHeight; z++) {
+				char c[4] = { char(125), char(125), char(125), char(255) };
+				setVoxel(x, y, z, c);
+			}
+		}
+	}
+
+	genSceneTexture();
+}
+
+void ofApp::genSceneTexture() { // create 3D texture, load voxel data into it, and create mipmaps
 		glGenTextures(1, &scene);
 		glBindTexture(GL_TEXTURE_3D, scene);
 		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST); //UPDATE THIS FOR MIPMAPPING OCTREE
@@ -157,7 +191,6 @@ void ofApp::loadVoxelData(string p) {
 		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAX_LEVEL, octreeDepth - 1);
 		glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, sceneWidth, sceneLength, sceneHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, volumeData);
 		glGenerateMipmap(GL_TEXTURE_3D);
-	}
 }
 
 void ofApp::setVoxel(int x, int y, int z, char c[4]) {
@@ -170,23 +203,35 @@ void ofApp::setVoxel(int x, int y, int z, char c[4]) {
 }
 
 void ofApp::reloadFBO() {
+	{
+		ofFbo::Settings settings;
 
-	ofFbo::Settings settings;
+		settings.width = ofGetWidth();
+		settings.height = ofGetHeight();
+		settings.useDepth = true;
+		settings.depthStencilAsTexture = true;
+		settings.useStencil = true;
+		settings.depthStencilInternalFormat = GL_DEPTH32F_STENCIL8;
 
-	settings.width = ofGetWidth();
-	settings.height = ofGetHeight();
-	settings.useDepth = true;
-	settings.depthStencilAsTexture = true;
-	settings.depthStencilInternalFormat = GL_DEPTH_COMPONENT32;
+		renderHistory.allocate(settings);
 
-	renderHistory.allocate(settings);
-
-	renderHistory.begin();
-		ofClear(255, 0, 0, 0);
-	renderHistory.end();
+		renderHistory.begin();
+			ofClear(255, 0, 0, 0);
+		renderHistory.end();
+	}
 
 	{
-		pastFrame.allocate(ofGetWidth(), ofGetHeight(), GL_RGBA32F_ARB);
+		ofFbo::Settings settings;
+
+		settings.width = ofGetWidth();
+		settings.height = ofGetHeight();
+		settings.useDepth = true;
+		settings.depthStencilAsTexture = true;
+		settings.useStencil = true;
+		settings.internalformat = GL_RGBA32F_ARB;
+		settings.depthStencilInternalFormat = GL_DEPTH32F_STENCIL8;
+
+		pastFrame.allocate(settings);
 
 		pastFrame.begin();
 			ofClear(255, 0, 0, 0);

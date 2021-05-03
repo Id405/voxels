@@ -24,6 +24,8 @@ class ofApp : public ofBaseApp{
 		void gotMessage(ofMessage msg);
 
 		void loadVoxelData(string p);
+		void genWorld();
+		void genSceneTexture();
 		void setVoxel(int x, int y, int z, char c[4]);
 
 		void reloadFBO();
@@ -58,9 +60,11 @@ class ofApp : public ofBaseApp{
 		int lastmousey;
 
 		float fov = 90;
-		float moveSpeed = 100;
+		float moveSpeed = 50;
 		float sensitivity = 0.0006;
-		float dragsensitivity= 0.001;
+		float dragsensitivity = 0.001;
+
+		float freq = 0.005;
 
 		int sceneWidth = 16;
 		int sceneLength = 16;
