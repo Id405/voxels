@@ -27,18 +27,19 @@ class ofApp : public ofBaseApp{
 		void genWorld();
 		void genSceneTexture();
 		void setVoxel(int x, int y, int z, char c[4]);
-
 		void reloadFBO();
+
+		ofShader rayTracer;
+		ofShader denoiser;
 
 		ofFbo renderHistory;
 		ofFbo pastFrame;
+
 		ofMatrix4x4 cameraMatrix;
 		ofMatrix4x4 pastCameraMatrix;
-		ofImage blueNoise;
-		ofMesh mesh;
-		
-		ofShader rayTracer;
-		ofShader denoiser;
+
+		ofImage img;
+
 		ofxPanel gui;
 		ofxFloatSlider samples;
 		ofxFloatSlider maxSteps;
@@ -47,17 +48,19 @@ class ofApp : public ofBaseApp{
 		ofxLabel fps;
 		ofxButton reload;
 		ofxButton renderButton;
-		ofImage img;
+
 		unsigned int scene;
 		unsigned char * volumeData;
 
 		ofVec3f input;
 		ofVec3f position;
-		bool lockMouse = false;
-		bool render = true;
 		ofVec3f rotation;
+
 		int lastmousex;
 		int lastmousey;
+
+		bool lockMouse = false;
+		bool render = true;
 
 		float fov = 90;
 		float moveSpeed = 50;
@@ -69,8 +72,5 @@ class ofApp : public ofBaseApp{
 		int sceneWidth = 16;
 		int sceneLength = 16;
 		int sceneHeight = 16;
-
-		// int samples = 15;
-		// int maxSteps = 512;
 		int octreeDepth = 4;
 };

@@ -1,45 +1,32 @@
 #version 460
 
-uniform vec2 iResolution; 
-uniform float samples = 10; /*BAD*/
-uniform int maxBounces = 10;
+out float gl_FragDepth;
+out vec4 outColor;
+
+uniform ivec2 iResolution; 
+uniform int samples = 10;
 uniform int maxSteps;
-uniform float fov;
+uniform int frameCount;
 
-uniform float maxLight = -1;
-uniform float minLight = 0;
+uniform mat4 cameraMatrix;
+uniform float focalLength;
 
-// uniform vec3 skycolor = vec3(135.0/255.0, 206.0/255.0, 235.0/255.0); // actual sky color
-uniform vec3 skycolor = vec3(0.9); //gray
+uniform sampler3D scene;
+uniform ivec3 sceneSize;
+uniform int octreeDepth;
+
+uniform vec3 skycolor = vec3(0.9);
 uniform vec3 suncolor = vec3(192.0/255.0, 191.0/255.0, 173.0/255.0);
 uniform vec3 lightcolor = vec3(5, 0, 0);
 uniform vec3 lightdir = vec3(0.0, 0.75, 1.0);
 uniform float sunSharpness = 2;
 uniform float sunPower = 4;
-uniform float skyPower = 0.4;
+uniform float skyPower = 0.2;
 uniform float sunlightStrength = 1.0;
-uniform float frameCount;
-uniform sampler3D scene;
-uniform ivec3 sceneSize;
-uniform int octreeDepth;
-
-uniform vec3 materialColor = vec3(0.5);
-
-uniform sampler2D blueNoise;
-
-uniform mat4 cameraMatrix;
-
-const float glowScale = 5;
-vec3 glowColor = vec3(0.5, 0.8, 1.0);
-
-layout (location = 0) out vec4 outColor;
-out float gl_FragDepth;
 
 #define PI 3.1415926535897932384626433832795
 
-vec4 getBlueNoise(ivec2 p) {
-	return texelFetch(blueNoise, p+int(frameCount)*ivec2(113, 127), 0);
-}
+// Helper functions
 
 uint base_hash(uvec2 p) {
     p = 1103515245U*((p >> 1U)^(p.yx));
@@ -73,56 +60,20 @@ vec3 rand3(vec3 seed) {
     return vec3(rz & uvec3(0x7fffffffU))/float(0x7fffffff);
 }
 
-
-vec3 random_in_unit_sphere() { //OPTIMIZE
+vec3 random_in_unit_sphere() {
     vec3 h = rand3(g_seed) * vec3(2.,6.28318530718,1.)-vec3(1,0,0);
     float phi = h.y;
     float r = pow(h.z, 1./3.);
 	return r * vec3(sqrt(1.-h.x*h.x)*vec2(sin(phi),cos(phi)),h.x);
 }
 
+// Scatter a ray with respect to lambertian shading
 vec3 scatter(vec3 n) {
 	vec3 dr = random_in_unit_sphere();
 	return sign(dot(dr, n))*dr;
 }
 
-
-mat4 rotationX( in float angle ) { //https://gist.github.com/onedayitwillmake/3288507
-	return mat4(	1.0,		0,			0,			0,
-					0, 	cos(angle),	-sin(angle),		0,
-					0, 	sin(angle),	 cos(angle),		0,
-					0, 			0,			  0, 		1);
-}
-
-mat4 rotationY( in float angle ) {
-	return mat4(	cos(angle),		0,		sin(angle),	0,
-					0,		        1.0,	0,	        0,
-					-sin(angle),	0,		cos(angle),	0,
-					0, 		        0,	    0,	        1);
-}
-
-mat4 rotationZ( in float angle ) {
-	return mat4(	cos(angle), -sin(angle), 0,	0,
-					sin(angle), cos(angle),	 0,	0,
-					0,			0,		     1,	0,
-					0,			0,		     0,	1);
-}
-
-vec3 rotate(vec3 r, vec3 p) {
-	vec4 vertex = vec4(p.xyz, 1.0);
-
-	vertex = vertex * rotationX(r.x) * rotationY(r.y) * rotationZ(r.z);
-
-	return vertex.xyz;
-}
-
-// void getVoxelIndex(int i, out vec3 boxMin, out vec3 boxMax) {
-// 	if(i > voxelCount) return;
-// 	boxMin = world[i*2];
-// 	boxMax = world[i*2+1];
-// 	return;
-// }
-
+// Intersect a ray with an axis aligned bounding box
 bool rayAABB(vec3 rayOrigin, vec3 rayDir, vec3 boxMin, vec3 boxMax, out vec2 result, out vec3 normal) {
     vec3 rayInvDir = 1.0 / rayDir; //Can be precomputed on a set of aligned boxes
     vec3 tbot = rayInvDir * (boxMin - rayOrigin);
@@ -139,27 +90,30 @@ bool rayAABB(vec3 rayOrigin, vec3 rayDir, vec3 boxMin, vec3 boxMax, out vec2 res
     return true;
 }
 
-
+// Is a position inside of a bounding box?
 bool insideBoundingBox(vec3 p, vec3 min, vec3 max) {
 	return p.x > min.x && p.x < max.x && p.y > min.y && p.y < max.y && p.z > min.z && p.z < max.z;
 }
 
+// Is the voxel at the given position and mipmap level filled?
 bool getVoxel(ivec3 c, int l) {
 	return texelFetch(scene, c, l).a != 0;
 }
 
+// Get the color of the voxel at a given position and mipmap level
 vec3 getColor(ivec3 c, int l) {
 	return texelFetch(scene, clamp(c, ivec3(0), sceneSize), l).rgb;
 }
 
+// The main raytracing function, the alpha channel of the vec4 that is returned is the depth
 vec4 trace(vec2 p) {
-	vec2 s = vec2(p.x - iResolution.x/2.0f, p.y - iResolution.y/2.0f);
-	vec3 raypos = (cameraMatrix * vec4(0, 0, 0, 1)).xyz; //TODO precompute these values
-	vec3 raydir = normalize(vec3(s.x/iResolution.y, fov, s.y/iResolution.y));
+	// Setup the Ray Position and Direction given the camera transformation matrix
+	vec2 s = vec2(p.x - float(iResolution.x)/2.0f, p.y - float(iResolution.y)/2.0f);
+	vec3 raypos = (cameraMatrix * vec4(0, 0, 0, 1)).xyz;
+	vec3 raydir = normalize(vec3(s.x/iResolution.y, focalLength, s.y/iResolution.y));
 	raydir = (cameraMatrix * vec4(raydir, 0.0)).xyz;
 
-	vec3 outColor = vec3(1);
-
+	// Variables needed for the bounding box function
 	vec3 n;
 	vec2 res;
 
@@ -172,9 +126,9 @@ vec4 trace(vec2 p) {
 	}
 
 	int maxLevel = octreeDepth-1;
-	int level = maxLevel/2;
+	int level = maxLevel/2; // The current level in the octree
 
-	float complexity = maxLevel/2;
+	float complexity = 0; // Used to display a complexity map, however not required for the actual rendering
 
 	ivec3 gridPosition = ivec3(floor(raypos));
 
@@ -185,77 +139,70 @@ vec4 trace(vec2 p) {
 	vec3 nextEdge = vec3(gridPosition & ivec3(-1 << level)) + vec3(greaterThan(raydir, vec3(0.0))) * (1 << level);
 	vec3 sideDist = abs((nextEdge - raypos) * deltaDist);
 
-	float dist;
-    vec3 normal = vec3(0.0);
-
 	bool moved = false;
 	bool lastNonEmpty = true;
 
+	float dist;
+    vec3 normal = vec3(0.0);
 	int steps = 0;
-	float sunlight = 0;
+
 	vec3 luminance = vec3(0);
+	vec3 outColor = vec3(1);
 	float depth = 0;
 
-	for(int i=0; i<maxSteps; i++) {
-		if(!insideBoundingBox(gridPosition, vec3(-2), sceneSize + vec3(1))) {
-			sunlight = sunlightStrength;
+	for(int i=0; i<maxSteps; i++) { // Begin marching the ray now
+		if(!insideBoundingBox(gridPosition, vec3(-2), sceneSize + vec3(1))) { // If we aren't inside the bounding box of the scene, there is no more geometry to intersect and we can return
 			break;
 		}
 
-		bool nonEmpty = getVoxel(gridPosition >> level, level);
-		bool belowEmpty = !getVoxel(gridPosition >> (level + 1), level + 1) && level < maxLevel;
-		bool verticalMove = nonEmpty || belowEmpty;
+		bool nonEmpty = getVoxel(gridPosition >> level, level); // Is the current voxel empty
+		bool belowEmpty = !getVoxel(gridPosition >> (level + 1), level + 1) && level < maxLevel; // Can we move upwards an octree level?
+		bool verticalMove = nonEmpty || belowEmpty; // If either we can move down or move up in the octree
 
 		if(verticalMove) {
-			complexity += int(nonEmpty);
+			complexity += int(nonEmpty); // Increment the complexity variable to keep track of a complexity map
 
-			vec3 lraypos = raypos;
+			vec3 modifiedRayPosition = raypos;
 			if(moved) {
-				lraypos = raypos + raydir * dist;
+				modifiedRayPosition = raypos + raydir * dist; // Find point of intersection between ray and the current grid position
 			}
 
-			gridPosition = ivec3(floor(lraypos - normal * 0.0001));
+			gridPosition = ivec3(floor(modifiedRayPosition - normal * 0.0001)); // Calculate a new grid position given that information
 
-			if(level == 0 && nonEmpty) {
-				complexity -= 1;
-				// return vec4(getColor(gridPosition >> level, level), 1.0);
-				// return vec4(vec3(dist/128), 1.0);
-				// if(rand3(vec3(gridPosition)).x > 0.99) {
-				// 	// luminance = vec3(0.02, 0.5, 1.0) * 100;
-				// 	luminance = rand3(vec3(gridPosition)) * 50;
-				// 	break;
-				// }
+			if(level == 0 && nonEmpty) { // If we are at the lowest level and hit a non empty grid position that means we hit scene geometry and we can scatter the ray off of it
+				// return vec4(getColor(gridPosition >> level, level), 1.0); // uncomment to disable lighting
 
 				outColor *= getColor(gridPosition >> level, level);
-				// outColor *= 0.5;
+				// outColor *= 0.5; // Disable color and only view lighting
 
-				if(depth == 0) {
+				if(depth == 0) { // Update the depth variable to store the distance to the first intersection with the scene geometry
 					depth = dist;
 				}
 
-				lraypos += normal * 0.01;
+				modifiedRayPosition += normal * 0.01; // Step off of the scene geometry slightly to avoid getting stuck inside of it
 				
-				raypos = lraypos;
+				raypos = modifiedRayPosition; // Update the ray position, ray direction and the values that depend on it
 				raydir = scatter(normal);
 				deltaDist = abs(vec3(1)/raydir);
 				step = ivec3(sign(raydir));
 				raydirsign = greaterThan(sign(raydir), vec3(0));
-				dist = 0;
+				dist = 0; // Reset the distance to zero
 			}
 
-			level -= int(nonEmpty);
+			level -= int(nonEmpty); // If we can move down, move down
 			level = max(0, level);
-			level += int(!nonEmpty);
+			level += int(!nonEmpty); // If we can move up, move up
 			
+			// Recalculate the variables dependent on grid position
 			nextEdge = vec3(gridPosition & ivec3(-1 << level)) + vec3(greaterThan(raydir, vec3(0.0))) * (1 << level);
-			sideDist = abs((nextEdge - lraypos) * deltaDist);
+			sideDist = abs((nextEdge - modifiedRayPosition) * deltaDist);
 
-			if(moved) {
+			if(moved) { // Accumulate the distance values
 				sideDist += dist;
 			}
 		}
 
-		if(!verticalMove) {
+		if(!verticalMove) { // If we aren't moving vertically, move horizontally
 			float minTime = min(sideDist.x, min(sideDist.y, sideDist.z));
 			dist = minTime;
 
@@ -263,7 +210,7 @@ vec4 trace(vec2 p) {
 			ivec3 vstep = ivec3(mix(-1, 1 << level, raydirsign.x), mix(-1, 1 << level, raydirsign.y), mix(-1, 1 << level, raydirsign.z));
 			gridPosition = (gridPosition & ivec3(-1 << level)) + ivec3(mask) * vstep;
 			sideDist += vec3(mask) * deltaDist * vec3(1 << level);
-			normal = vec3(mask) * -step; //WRONG NORMAL DATA!!!!?
+			normal = vec3(mask) * -step;
 			moved = true;
 		}
 
@@ -271,43 +218,35 @@ vec4 trace(vec2 p) {
 		steps = i;
 	}
 
-	if(depth == 0) {
+	if(depth == 0) { // If we didn't intersect the scene, then the distance should be infinity
 		depth = 10000000;
 	}
 
-	return vec4(outColor * (suncolor * pow(max(dot(normalize(lightdir), raydir), 0.0), sunSharpness) * sunPower + skycolor * skyPower + luminance), depth + res.x);
-	// return vec4(vec3(float(steps)/maxSteps), 1.0);
-	// return vec4(outColor, 1);
-	// return vec4(vec3(complexity/(maxLevel * 4)), 1);
-	// return vec4(vec3(dist/128), 1);
+	return vec4(outColor * (suncolor * pow(max(dot(normalize(lightdir), raydir), 0.0), sunSharpness) * sunPower + skycolor * skyPower + luminance), depth + res.x); // Return fully lit scene
+	// return vec4(vec3(float(steps)/maxSteps), 1.0); // Return how many steps it took to render this pixel
+	// return vec4(outColor, 1); // Return scene lit only using anti-aliasing
+	// return vec4(vec3(complexity/(maxLevel * 4)), 1); // Return complexity map
+	// return vec4(vec3(dist/128), 1); // Return distance map
 }
 
 void mainImage(in vec2 fragCoord )
 {
-	float samplesCount = samples;
-	g_seed = float(base_hash(floatBitsToUint(fragCoord)))/float(0xffffffffU)+frameCount/60;
+	// Initialize global seed for RNG
+	g_seed = float(base_hash(floatBitsToUint(fragCoord)))/float(0xffffffffU)+float(frameCount)/60;
 
-	// world[0] = vec3(-1, -1, 0);
-	// world[1] = vec3(1, 1, 2);
-
+	// Render the scenes samples
 	for(int i=0; i < samples; i++) {
 		vec2 p = fragCoord;
-		// p += getBlueNoise(ivec2(gl_FragCoord)).xy * 2 - 1;
-		// p += 0.25 * (rand2(g_seed) * 2 - 1);
-		p.y = iResolution.y - p.y;
+		// p += 0.25 * (rand2(g_seed) * 2 - 1); // Jitter primary ray by a small random amount for anti aliasing
+		p.y = iResolution.y - p.y; // Flip image vertically because ofFbo flips images vertically for some reason
 		vec4 col = trace(p);
 
-		outColor += vec4(col.rgb, 1.0);
-		gl_FragDepth += col.a/10000;
+		outColor += vec4(col.rgb, 1.0); // Accumulate color average
+		gl_FragDepth += col.a/10000; // Accumulate depth average
 	}
 
-	outColor /= samplesCount;
-	gl_FragDepth /= samplesCount;
-	
-	// outColor.xyz = rand3();
-	// outColor.w = 1.0;
-
-	// outColor = pow(outColor, vec4(vec3(1.0/1.8), 1.0)); //Add night eye minecraft shader trick here too
+	outColor /= float(samples); // Average color
+	gl_FragDepth /= float(samples); // Average depth
 }
 
 void main() {

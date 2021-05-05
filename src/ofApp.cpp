@@ -1,32 +1,26 @@
 #include "ofApp.h"
 
 void ofApp::setup(){
-	// ofBackground(255, 125, 90);
-	ofDisableArbTex();
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_ALWAYS);
-	ofSetVerticalSync(false);
-
-	blueNoise.load("textures/LDR_RGBA_0.png");
-	blueNoise.getTexture().setTextureWrap(GL_REPEAT, GL_REPEAT);
-
-	position.set(-20, -20, 48);
-	rotation.set(-0.4, 0, -0.8);
-
-	rayTracer.load("shaders/tracer");
-	denoiser.load("shaders/denoiser");
-	loadVoxelData("scenes/garfield.evox");
-	// genWorld();
-	
-	{
-		mesh.setMode(OF_PRIMITIVE_TRIANGLE_STRIP);
-		mesh.addVertex(ofPoint(0, 0));
-		mesh.addVertex(ofPoint(0, 0));
-		mesh.addVertex(ofPoint(0, 0));
-		mesh.addVertex(ofPoint(0, 0));
+	{ // Setup OpenGl stuff
+		glEnable(GL_DEPTH_TEST); // Enable depth buffers/textures
+		glDepthFunc(GL_ALWAYS); // But tell OpenGl to not actually use them to obscure geometry.
+		ofSetVerticalSync(false); //VSync is evil
+		ofDisableArbTex(); // I don't know what this does but it breaks everything if its not here. Something about setting the texture mode
 	}
 
 	{
+		position.set(-20, -20, 48);
+		rotation.set(-0.4, 0, -0.8);
+	}
+
+	{ // Load Shaders and scene
+		rayTracer.load("shaders/tracer");
+		denoiser.load("shaders/denoiser");
+		// loadVoxelData("scenes/garfield.evox");
+		genWorld();
+	}
+
+	{ // Initialize gui
 		gui.setup();
 		gui.add(samples.setup("samples", 10, 1, 200));
 		gui.add(maxSteps.setup("max steps", 200, 50, 256));
@@ -36,56 +30,56 @@ void ofApp::setup(){
 		gui.add(reload.setup("reload shaders", 200, 25));
 	}
 
+	// Setup the frame buffer objects
 	reloadFBO();
 }
 
 void ofApp::update() {
-	ofVec3f rotatedInput = input.getRotatedRad(0, 0, rotation.z);
-	position += rotatedInput * ofGetLastFrameTime() * moveSpeed;
+	{ // Update the position using the keyboard input
+		ofVec3f rotatedInput = input.getRotatedRad(0, 0, rotation.z);
+		position += rotatedInput * ofGetLastFrameTime() * moveSpeed;
+	}
 
-	{
+	{ // Update the camera transformation matrix, this matrix transforms the camera to its position, the inverse of the matrix transforms a worldspace point to a camera space point.
 		cameraMatrix = ofMatrix4x4::newRotationMatrix(rotation.x * 180/PI, ofVec3f(1.0, 0.0, 0.0), rotation.y * 180/PI, ofVec3f(0.0, 1.0, 0.0), rotation.z * 180/PI, ofVec3f(0.0, 0.0, 1.0)) * ofMatrix4x4::newTranslationMatrix(position);
 	}
 }
 
 void ofApp::draw(){
-	if(render) {
-		renderHistory.begin();
-			rayTracer.begin();
-				rayTracer.setUniform2f("iResolution", ofGetWindowWidth(), ofGetWindowHeight());
-				rayTracer.setUniform1f("samples", (float) samples);
-				rayTracer.setUniform1f("fov", 0.5 * tan((90 - fov / 2) * PI / 180));
-				rayTracer.setUniform1f("frameCount", (float)ofGetFrameNum());
+	if(render) { // Render and denoise the scene
+		renderHistory.begin(); // First begin to use the renderHistory fbo. This fbo is for the ray tracer to render a full image and pass to the denoiser
+			rayTracer.begin(); // Begin using the ray tracer shader
+				rayTracer.setUniform2i("iResolution", ofGetWindowWidth(), ofGetWindowHeight()); // Pass in all of the variables we'll need
+				rayTracer.setUniform1i("samples", samples);
+				rayTracer.setUniform1f("focalLength", 0.5 * tan((90 - fov / 2) * PI / 180));
+				rayTracer.setUniform1i("frameCount", ofGetFrameNum());
 				rayTracer.setUniformMatrix4f("cameraMatrix", cameraMatrix);
 				rayTracer.setUniform3i("sceneSize", sceneWidth, sceneLength, sceneHeight);
 				rayTracer.setUniform1i("maxSteps", (int)maxSteps);
 				rayTracer.setUniform1i("octreeDepth", octreeDepth);
-				rayTracer.setUniformTexture("blueNoise", blueNoise.getTexture(), 0);
-				ofDrawRectangle(0, 0, ofGetWidth(), ofGetHeight());
+				ofDrawRectangle(0, 0, ofGetWidth(), ofGetHeight()); // Then render a full screen rectangle to draw the shader over the whole screen
 			rayTracer.end();
 		renderHistory.end();
 
-		pastFrame.begin();
+		pastFrame.begin(); // Then begin to use the pastFrame fbo. This fbo is for the denoiser to denoise the rendered image, currently only using temporal reprojection
 			denoiser.begin();
-			denoiser.setUniform2f("iResolution", ofGetWindowWidth(), ofGetWindowHeight());
-			denoiser.setUniform1f("reproPercent", reproPercent);
-			denoiser.setUniformMatrix4f("invPastCameraMatrix", pastCameraMatrix.getInverse());
-			denoiser.setUniformMatrix4f("cameraMatrix", cameraMatrix);
-			denoiser.setUniformTexture("renderedFrame", renderHistory.getTextureReference(0), 0);
-			denoiser.setUniformTexture("renderedFrameDepth", renderHistory.getDepthTexture(), 2);
-			denoiser.setUniformTexture("pastFrame", pastFrame.getTextureReference(0), 1);
-			denoiser.setUniformTexture("pastFrameDepth", pastFrame.getDepthTexture(), 3);
-			denoiser.setUniform1f("fov", 0.5 * tan((90 - fov / 2) * PI / 180));
-			denoiser.setUniform1i("frameCount", ofGetFrameNum());
-			mesh.draw();
+				denoiser.setUniform2f("iResolution", ofGetWindowWidth(), ofGetWindowHeight());
+				denoiser.setUniform1f("reproPercent", reproPercent);
+				denoiser.setUniformMatrix4f("invPastCameraMatrix", pastCameraMatrix.getInverse());
+				denoiser.setUniformMatrix4f("cameraMatrix", cameraMatrix);
+				denoiser.setUniformTexture("renderedFrame", renderHistory.getTextureReference(0), 0);
+				denoiser.setUniformTexture("renderedFrameDepth", renderHistory.getDepthTexture(), 2);
+				denoiser.setUniformTexture("pastFrame", pastFrame.getTextureReference(0), 1);
+				denoiser.setUniformTexture("pastFrameDepth", pastFrame.getDepthTexture(), 3);
+				denoiser.setUniform1f("focalLength", 0.5 * tan((90 - fov / 2) * PI / 180));
+				denoiser.setUniform1i("frameCount", ofGetFrameNum());
+				ofDrawRectangle(0, 0, ofGetWidth(), ofGetHeight());
 			denoiser.end();
 		pastFrame.end();
 
 		pastFrame.draw(0, 0);
-		// renderHistory.getDepthTexture().draw(0, 0);
 
-		pastCameraMatrix = cameraMatrix;
-		// renderHistory.draw(0, 0);
+		pastCameraMatrix = cameraMatrix; // Store the cameras position and rotation for the denoiser to use in the next frame to reproject
 	}
 
 	{ // render gui
@@ -102,7 +96,7 @@ void ofApp::draw(){
 }
 
 void ofApp::loadVoxelData(string p) {
-	{ // load voxel information from filee
+	{ // load voxel information from file
 		ofFile f;
 		f.open(p, ofFile::ReadOnly);
 
@@ -118,7 +112,7 @@ void ofApp::loadVoxelData(string p) {
 		sceneLength = stoi(ofSplitString(lines[0], "x")[2]);
 		sceneHeight = stoi(ofSplitString(lines[0], "x")[1]);
 
-		volumeData = new unsigned char[sceneWidth*sceneLength*sceneHeight * 4];
+		volumeData = new unsigned char[sceneWidth*sceneLength*sceneHeight * 4]; // volumeData is a flattened 3D array.
 
 		for (int x = 0; x < sceneWidth; x++) {
 			for (int y = 0; y < sceneLength; y++) {
@@ -147,10 +141,11 @@ void ofApp::loadVoxelData(string p) {
 		}
 	}
 
+	//Generate a 3d texture holding the scene so it can be accessed using the graphics card
 	genSceneTexture();
 }
 
-void ofApp::genWorld() {
+void ofApp::genWorld() { // Generate a scene using perlin noise
 	sceneWidth = 512;
 	sceneLength = 512;
 	sceneHeight = 128;
@@ -176,6 +171,8 @@ void ofApp::genWorld() {
 		}
 	}
 
+	octreeDepth = floor(log2(min(sceneWidth, min(sceneLength, sceneHeight))));
+
 	genSceneTexture();
 }
 
@@ -189,11 +186,11 @@ void ofApp::genSceneTexture() { // create 3D texture, load voxel data into it, a
 		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_BASE_LEVEL, 0);
 		glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAX_LEVEL, octreeDepth - 1);
-		glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, sceneWidth, sceneLength, sceneHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, volumeData);
+		glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA32F, sceneWidth, sceneLength, sceneHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, volumeData);
 		glGenerateMipmap(GL_TEXTURE_3D);
 }
 
-void ofApp::setVoxel(int x, int y, int z, char c[4]) {
+void ofApp::setVoxel(int x, int y, int z, char c[4]) { // Set the data of a voxel at a given position
 	int p = ((x + sceneWidth * y) + z * sceneWidth*sceneLength) * 4;
 
 	volumeData[p] = c[0];
@@ -202,25 +199,26 @@ void ofApp::setVoxel(int x, int y, int z, char c[4]) {
 	volumeData[p + 3] = c[3];
 }
 
-void ofApp::reloadFBO() {
-	{
+void ofApp::reloadFBO() { // Reload the framebuffers, this needs to be called every time the resolution changes
+	{ // Create the renderHistory fbo
 		ofFbo::Settings settings;
 
 		settings.width = ofGetWidth();
 		settings.height = ofGetHeight();
-		settings.useDepth = true;
-		settings.depthStencilAsTexture = true;
-		settings.useStencil = true;
-		settings.depthStencilInternalFormat = GL_DEPTH32F_STENCIL8;
+		settings.useDepth = true; // Enable the depth texture
+		settings.depthStencilAsTexture = true; // Store depth as a depth texture not as a buffer
+		settings.useStencil = true; // Enable the stencil so we can use floating points for the depth
+		settings.internalformat = GL_RGBA32F_ARB; // Use floating point colors because why not
+		settings.depthStencilInternalFormat = GL_DEPTH32F_STENCIL8; // Use floating point depth for extra precision
 
-		renderHistory.allocate(settings);
+		renderHistory.allocate(settings); // Create the frame buffer object
 
-		renderHistory.begin();
+		renderHistory.begin();  // Clear the object
 			ofClear(255, 0, 0, 0);
 		renderHistory.end();
 	}
 
-	{
+	{ // Create the pastFrame fbo
 		ofFbo::Settings settings;
 
 		settings.width = ofGetWidth();
@@ -239,8 +237,8 @@ void ofApp::reloadFBO() {
 	}
 }
 
-void ofApp::keyPressed(int key){
-	if (key == 'a') {
+void ofApp::keyPressed(int key) {
+	if (key == 'a') { // Movement
 		input.x = -1;
 	}
 	else if (key == 's') {
@@ -258,7 +256,7 @@ void ofApp::keyPressed(int key){
 	else if (key == 'c') {
 		input.z = -1;
 	}
-	else if (key == 'f') {
+	else if (key == 'f') { // Lock mouse for fps style camera
 		lockMouse = !lockMouse;
 		if (lockMouse) {
 			ofHideCursor();
@@ -267,16 +265,16 @@ void ofApp::keyPressed(int key){
 			ofShowCursor();
 		}
 	}
-	else if (key == 'p') {
+	else if (key == 'p') { // Toggle render
 		render = !render;
 	}
-	else if (key == 'g') {
+	else if (key == 'g') { // Take screenshot
 		img.grabScreen(0, 0, ofGetWidth(), ofGetHeight());
 		img.save("screenshot.png");
 	}
 }
 
-void ofApp::keyReleased(int key){
+void ofApp::keyReleased(int key) {
 	if (key == 'a') {
 		input.x = 0;
 	}
@@ -297,8 +295,8 @@ void ofApp::keyReleased(int key){
 	}
 }
 
-void ofApp::mouseMoved(int x, int y ){
-	#ifdef _WIN64
+void ofApp::mouseMoved(int x, int y ) {
+	#ifdef _WIN64 // FPS style locked camera only works on windows :(
 	if (lockMouse) {
 		rotation.z -= (x-ofGetWindowWidth()/2) * sensitivity;
 		rotation.x -= (y-ofGetWindowHeight()/2) * sensitivity;
@@ -310,13 +308,11 @@ void ofApp::mouseMoved(int x, int y ){
 }
 
 
-void ofApp::mouseDragged(int x, int y, int button){
-	#ifdef __linux__
+void ofApp::mouseDragged(int x, int y, int button) {
 	rotation.z -= (x - lastmousex) * dragsensitivity;
 	rotation.x -= (y - lastmousey) * dragsensitivity; 
 	lastmousex = x;
 	lastmousey = y;
-	#endif
 }
 
 void ofApp::mousePressed(int x, int y, int button){
@@ -335,8 +331,8 @@ void ofApp::mouseExited(int x, int y){
 
 }
 
-void ofApp::windowResized(int w, int h){
-	reloadFBO();
+void ofApp::windowResized(int w, int h) {
+	reloadFBO(); // Resize the frame buffer objects
 }
 
 void ofApp::gotMessage(ofMessage msg){
@@ -346,19 +342,3 @@ void ofApp::gotMessage(ofMessage msg){
 void ofApp::dragEvent(ofDragInfo dragInfo){ 
 
 }
-
-// Graveyard
-// {
-// 	glGenFramebuffers(1, &renderHistory);
-// 	glBindFramebuffer(GL_FRAMEBUFFER, renderHistory);
-
-// 	glGenTextures(1, &renderHistoryTexture);
-// 	glBindTexture(GL_TEXTURE_2D, renderHistoryTexture);
-
-// 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, ofGetWindowWidth(), ofGetWindowHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-
-// 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-// 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-// 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderHistory, 0);
-// }
