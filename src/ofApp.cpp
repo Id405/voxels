@@ -16,8 +16,8 @@ void ofApp::setup(){
 	{ // Load Shaders and scene
 		rayTracer.load("shaders/tracer");
 		denoiser.load("shaders/denoiser");
-		// loadVoxelData("scenes/garfield.evox");
-		genWorld();
+		loadVoxelData("scenes/garfield.evox");
+		// genWorld();
 	}
 
 	{ // Initialize gui
