@@ -140,7 +140,6 @@ vec4 trace(vec2 p) {
 	vec3 sideDist = abs((nextEdge - raypos) * deltaDist);
 
 	bool moved = false;
-	bool lastNonEmpty = true;
 
 	float dist;
     vec3 normal = vec3(0.0);
@@ -214,7 +213,6 @@ vec4 trace(vec2 p) {
 			moved = true;
 		}
 
-		lastNonEmpty = nonEmpty;
 		steps = i;
 	}
 
