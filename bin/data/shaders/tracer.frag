@@ -1,7 +1,8 @@
 #version 460
 
 out float gl_FragDepth;
-out vec4 outColor;
+layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outNormal;
 
 uniform ivec2 iResolution; 
 uniform int samples = 10;
@@ -176,6 +177,7 @@ vec4 trace(vec2 p) {
 
 				if(depth == 0) { // Update the depth variable to store the distance to the first intersection with the scene geometry
 					depth = dist;
+					// outNormal = vec4(normal, 1.0);
 				}
 
 				modifiedRayPosition += normal * 0.01; // Step off of the scene geometry slightly to avoid getting stuck inside of it
@@ -230,7 +232,7 @@ vec4 trace(vec2 p) {
 void mainImage(in vec2 fragCoord )
 {
 	// Initialize global seed for RNG
-	g_seed = float(base_hash(floatBitsToUint(fragCoord)))/float(0xffffffffU)+float(frameCount)/60;
+	g_seed = float(base_hash(floatBitsToUint(fragCoord + float(frameCount)/240)))/float(0xffffffffU);
 
 	// Render the scenes samples
 	for(int i=0; i < samples; i++) {
@@ -245,6 +247,7 @@ void mainImage(in vec2 fragCoord )
 
 	outColor /= float(samples); // Average color
 	gl_FragDepth /= float(samples); // Average depth
+	outNormal = vec4(1.0, 0.0, 0.0, 1.0);
 }
 
 void main() {

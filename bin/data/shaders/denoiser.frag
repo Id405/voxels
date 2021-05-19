@@ -1,4 +1,4 @@
-#version 460
+#version 450
 
 out vec4 outColor;
 out float gl_FragDepth;
@@ -16,16 +16,11 @@ uniform int frameCount;
 uniform mat4 invPastCameraMatrix;
 uniform mat4 cameraMatrix;
 
-// https://iquilezles.org/www/articles/intersectors/intersectors.htm
-float planeIntersect( in vec3 ro, in vec3 rd, in vec4 p )
-{
-    return -(dot(ro,p.xyz)+p.w)/dot(rd,p.xyz);
-}
+const int blurRadius = 5;
 
 void main() {
     vec2 textureCoordinate = gl_FragCoord.xy/iResolution;
     float reprojectionPercentWeighted = reproPercent;
-    float aspectRatio = iResolution.x/iResolution.y;
 
     // Get the freshly rendered color and depth information
     vec4 renderedFrameColor = texture(renderedFrame, textureCoordinate);
@@ -41,15 +36,11 @@ void main() {
     // Then transform that world space position into a camera space position for the last frame
     vec3 cameraSpacePosition = (invPastCameraMatrix * vec4(worldSpacePosition, 1.0)).xyz;
 
-    // Find the ray direction between the camera space position and last frames camera
-    vec3 reproRayDir = normalize(-cameraSpacePosition);
-
-    // Calculate the intersection between that and a plane at the focal length of the camera, then use that intersection point to find the pixel from last frame that matches up with the pixel from this frame
-    float cameraIntersection = planeIntersect(cameraSpacePosition, reproRayDir, vec4(0.0, 1.0, 0.0, focalLength));
-    vec2 prevUV = (cameraSpacePosition + cameraIntersection * reproRayDir).xz;
+    // Project the world space position into camera space
+    vec2 prevUV = cameraSpacePosition.xz/(cameraSpacePosition.y/focalLength);
     prevUV.x /= iResolution.x/iResolution.y;
     prevUV += 0.5;
-    prevUV.x = 1.0 - prevUV.x;
+    prevUV.y = 1.0 - prevUV.y;
 
     // Then get the color of that pixel
     // vec4 pastFrameColor = texelFetch(pastFrame, ivec2(prevUV * iResolution), 0);
@@ -74,7 +65,7 @@ void main() {
 
     // Finally average out the depth and color information
     outColor = renderedFrameColor * (1.0 - reprojectionPercentWeighted) + pastFrameColor * reprojectionPercentWeighted;
-    gl_FragDepth = renderedFrameDepthFloat/10000 * (1.0 - reprojectionPercentWeighted) + pastFrameDepthFloat/10000 * reprojectionPercentWeighted;
+    gl_FragDepth = renderedFrameDepthFloat/10000;
 
     // Uncomment this code to render once a second and extrapolate between frames
     // if(frameCount % 60 == 0) {
@@ -89,4 +80,10 @@ void main() {
 
     // And apply an srgb color transform
     outColor = pow(outColor, vec4(vec3(1.0/2.2), 1.0));
+
+    // outColor = vec4(vec3(prevUV, 0.0), 1.0);
+    // outColor = vec4(vec3(worldSpacePosition/256), 1.0);
+    // outColor = vec4(vec3(abs(minDepthDistance)), 1.0);
+    // outColor = vec4(vec3(length(abs(prevUV-textureCoordinate)) * 20), 1.0);
+    // outColor = vec4(vec3(prevUV, 0.0), 1.0);
 }

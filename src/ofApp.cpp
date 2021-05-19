@@ -24,7 +24,8 @@ void ofApp::setup(){
 		gui.setup();
 		gui.add(samples.setup("samples", 10, 1, 200));
 		gui.add(maxSteps.setup("max steps", 200, 50, 256));
-		gui.add(reproPercent.setup("reprojection percent", 0.9, 0, 1));
+		gui.add(reproPercent.setup("reprojection percent", 0.0, 0.5, 1));
+		gui.add(moveSpeed.setup("move speed", 25, 1, 50));
 		gui.add(label.setup("frametime", "initializing", 200, 25));
 		gui.add(fps.setup("fps", "initializing", 200, 25));
 		gui.add(reload.setup("reload shaders", 200, 25));
@@ -39,14 +40,14 @@ void ofApp::update() {
 		ofVec3f rotatedInput = input.getRotatedRad(0, 0, rotation.z);
 		position += rotatedInput * ofGetLastFrameTime() * moveSpeed;
 	}
-
-	{ // Update the camera transformation matrix, this matrix transforms the camera to its position, the inverse of the matrix transforms a worldspace point to a camera space point.
-		cameraMatrix = ofMatrix4x4::newRotationMatrix(rotation.x * 180/PI, ofVec3f(1.0, 0.0, 0.0), rotation.y * 180/PI, ofVec3f(0.0, 1.0, 0.0), rotation.z * 180/PI, ofVec3f(0.0, 0.0, 1.0)) * ofMatrix4x4::newTranslationMatrix(position);
-	}
 }
 
 void ofApp::draw(){
 	if(render) { // Render and denoise the scene
+		{ // Update the camera transformation matrix, this matrix transforms the camera to its position, the inverse of the matrix transforms a worldspace point to a camera space point.
+			cameraMatrix = ofMatrix4x4::newRotationMatrix(rotation.x * 180/PI, ofVec3f(1.0, 0.0, 0.0), rotation.y * 180/PI, ofVec3f(0.0, 1.0, 0.0), rotation.z * 180/PI, ofVec3f(0.0, 0.0, 1.0)) * ofMatrix4x4::newTranslationMatrix(position);
+		}
+
 		renderHistory.begin(); // First begin to use the renderHistory fbo. This fbo is for the ray tracer to render a full image and pass to the denoiser
 			rayTracer.begin(); // Begin using the ray tracer shader
 				rayTracer.setUniform2i("iResolution", ofGetWindowWidth(), ofGetWindowHeight()); // Pass in all of the variables we'll need
@@ -57,30 +58,49 @@ void ofApp::draw(){
 				rayTracer.setUniform3i("sceneSize", sceneWidth, sceneLength, sceneHeight);
 				rayTracer.setUniform1i("maxSteps", (int)maxSteps);
 				rayTracer.setUniform1i("octreeDepth", octreeDepth);
+				rayTracer.setUniform1i("render", (int) render);
 				ofDrawRectangle(0, 0, ofGetWidth(), ofGetHeight()); // Then render a full screen rectangle to draw the shader over the whole screen
 			rayTracer.end();
 		renderHistory.end();
 
-		pastFrame.begin(); // Then begin to use the pastFrame fbo. This fbo is for the denoiser to denoise the rendered image, currently only using temporal reprojection
+		bool doubleBufferSwitch = ofGetFrameNum() % 2 == 0;
+		ofTexture pastFrameTextureRef;
+		ofTexture pastFrameDepthTextureRef;
+		
+		if(doubleBufferSwitch) { // Then begin to use the pastFrame fbo. This fbo is for the denoiser to denoise the rendered image, currently only using temporal reprojection
+			pastFrame.begin();
+			pastFrameTextureRef = pastFrameCopy.getTextureReference(0);
+			pastFrameDepthTextureRef = pastFrameCopy.getDepthTexture();
+		} else {
+			pastFrameCopy.begin();
+			pastFrameTextureRef = pastFrame.getTextureReference(0);
+			pastFrameDepthTextureRef = pastFrame.getDepthTexture();
+		}
 			denoiser.begin();
 				denoiser.setUniform2f("iResolution", ofGetWindowWidth(), ofGetWindowHeight());
 				denoiser.setUniform1f("reproPercent", reproPercent);
 				denoiser.setUniformMatrix4f("invPastCameraMatrix", pastCameraMatrix.getInverse());
 				denoiser.setUniformMatrix4f("cameraMatrix", cameraMatrix);
 				denoiser.setUniformTexture("renderedFrame", renderHistory.getTextureReference(0), 0);
+				// denoiser.setUniformTexture("renderedFrameNormals", renderHistory.getTextureReference(1), 0);
 				denoiser.setUniformTexture("renderedFrameDepth", renderHistory.getDepthTexture(), 2);
-				denoiser.setUniformTexture("pastFrame", pastFrame.getTextureReference(0), 1);
-				denoiser.setUniformTexture("pastFrameDepth", pastFrame.getDepthTexture(), 3);
+				denoiser.setUniformTexture("pastFrame", pastFrameTextureRef, 1);
+				denoiser.setUniformTexture("pastFrameDepth", pastFrameDepthTextureRef, 3);
 				denoiser.setUniform1f("focalLength", 0.5 * tan((90 - fov / 2) * PI / 180));
 				denoiser.setUniform1i("frameCount", ofGetFrameNum());
 				ofDrawRectangle(0, 0, ofGetWidth(), ofGetHeight());
 			denoiser.end();
-		pastFrame.end();
-
-		pastFrame.draw(0, 0);
+		if(doubleBufferSwitch) {
+			pastFrame.end();
+		} else {
+			pastFrameCopy.end();
+		}
 
 		pastCameraMatrix = cameraMatrix; // Store the cameras position and rotation for the denoiser to use in the next frame to reproject
 	}
+
+	pastFrame.draw(0, 0);
+
 
 	{ // render gui
 		gui.draw();
@@ -201,7 +221,7 @@ void ofApp::setVoxel(int x, int y, int z, char c[4]) { // Set the data of a voxe
 
 void ofApp::reloadFBO() { // Reload the framebuffers, this needs to be called every time the resolution changes
 	{ // Create the renderHistory fbo
-		ofFbo::Settings settings;
+		ofFboSettings settings;
 
 		settings.width = ofGetWidth();
 		settings.height = ofGetHeight();
@@ -209,6 +229,7 @@ void ofApp::reloadFBO() { // Reload the framebuffers, this needs to be called ev
 		settings.depthStencilAsTexture = true; // Store depth as a depth texture not as a buffer
 		settings.useStencil = true; // Enable the stencil so we can use floating points for the depth
 		settings.internalformat = GL_RGBA32F_ARB; // Use floating point colors because why not
+		settings.textureTarget = GL_TEXTURE_2D;
 		settings.depthStencilInternalFormat = GL_DEPTH32F_STENCIL8; // Use floating point depth for extra precision
 
 		renderHistory.allocate(settings); // Create the frame buffer object
@@ -234,6 +255,24 @@ void ofApp::reloadFBO() { // Reload the framebuffers, this needs to be called ev
 		pastFrame.begin();
 			ofClear(255, 0, 0, 0);
 		pastFrame.end();
+	}
+
+	{ // Create the pastFrame fbo
+		ofFbo::Settings settings;
+
+		settings.width = ofGetWidth();
+		settings.height = ofGetHeight();
+		settings.useDepth = true;
+		settings.depthStencilAsTexture = true;
+		settings.useStencil = true;
+		settings.internalformat = GL_RGBA32F_ARB;
+		settings.depthStencilInternalFormat = GL_DEPTH32F_STENCIL8;
+
+		pastFrameCopy.allocate(settings);
+
+		pastFrameCopy.begin();
+			ofClear(255, 0, 0, 0);
+		pastFrameCopy.end();
 	}
 }
 

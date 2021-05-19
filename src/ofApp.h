@@ -34,6 +34,7 @@ class ofApp : public ofBaseApp{
 
 		ofFbo renderHistory;
 		ofFbo pastFrame;
+		ofFbo pastFrameCopy;
 
 		ofMatrix4x4 cameraMatrix;
 		ofMatrix4x4 pastCameraMatrix;
@@ -44,6 +45,7 @@ class ofApp : public ofBaseApp{
 		ofxFloatSlider samples;
 		ofxFloatSlider maxSteps;
 		ofxFloatSlider reproPercent;
+		ofxFloatSlider moveSpeed;
 		ofxLabel label;
 		ofxLabel fps;
 		ofxButton reload;
@@ -63,7 +65,6 @@ class ofApp : public ofBaseApp{
 		bool render = true;
 
 		float fov = 90;
-		float moveSpeed = 50;
 		float sensitivity = 0.0006;
 		float dragsensitivity = 0.001;
 
